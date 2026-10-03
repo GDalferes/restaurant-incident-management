@@ -1,279 +1,294 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi import Request
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
-from datetime import datetime, date
-from pathlib import Path
-import os
+const state = {
+  stations: [],
+  staff: [],
+  incidents: [],
+  assignments: [],
+  tips: [],
+  insights: { total_incidents: 0, by_type: {} }
+};
 
-from app.database import Base, engine, get_db
-from app.models import (
-    TRA_STAFF, TRA_STATION, TRA_ASSIGNMENT, TRA_INCIDENT, TRA_CUSTOMER_TIP,
-    TRA_COMPLIANCE_STATUS, TRA_CERT_STATUS, TRA_CERT_TYPE, TRA_RISK_LEVEL,
-    TRA_STATION_STATUS, TRA_ASSIGNMENT_STATUS, TRA_TIP_STATUS
-)
+const statusMap = { 1: 'Pending', 2: 'Approved', 3: 'Blocked' };
 
-BASE_DIR = Path(__file__).resolve().parent
-app = FastAPI(title="The Rusty Anchor")
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+document.addEventListener('DOMContentLoaded', () => {
+  bindTabs();
+  bindRoleToggle();
+  bindForms();
+  bindFilters();
+  loadAll();
+});
 
-Base.metadata.create_all(bind=engine)
+function bindTabs() {
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
+      document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.style.display = panel.id === tab.dataset.tab ? 'block' : 'none';
+      });
+    });
+  });
+}
 
+function bindRoleToggle() {
+  const btn = document.getElementById('roleToggle');
+  let manager = true;
+  btn.addEventListener('click', () => {
+    manager = !manager;
+    btn.textContent = manager ? 'Manager View' : 'Staff View';
+    btn.classList.toggle('outline', manager);
+    document.getElementById('roleBadge')?.remove();
+  });
+}
 
-def seed_data(db: Session):
-    # seed lookup values if empty
-    if db.query(TRA_COMPLIANCE_STATUS).count() == 0:
-        db.add_all([
-            TRA_COMPLIANCE_STATUS(id=1, value="Compliant"),
-            TRA_COMPLIANCE_STATUS(id=2, value="Non-Compliant"),
-            TRA_COMPLIANCE_STATUS(id=3, value="Under Review"),
-        ])
-    if db.query(TRA_CERT_STATUS).count() == 0:
-        db.add_all([
-            TRA_CERT_STATUS(id=1, value="Active"),
-            TRA_CERT_STATUS(id=2, value="Expired"),
-            TRA_CERT_STATUS(id=3, value="Pending Review"),
-        ])
-    if db.query(TRA_CERT_TYPE).count() == 0:
-        db.add_all([
-            TRA_CERT_TYPE(id=1, value="Food Handler Certification"),
-            TRA_CERT_TYPE(id=2, value="Grill Safety Certification"),
-            TRA_CERT_TYPE(id=3, value="Recipe Security Clearance"),
-            TRA_CERT_TYPE(id=4, value="First Aid / CPR"),
-        ])
-    if db.query(TRA_RISK_LEVEL).count() == 0:
-        db.add_all([
-            TRA_RISK_LEVEL(id=1, value="Low"),
-            TRA_RISK_LEVEL(id=2, value="Medium"),
-            TRA_RISK_LEVEL(id=3, value="High"),
-        ])
-    if db.query(TRA_STATION_STATUS).count() == 0:
-        db.add_all([
-            TRA_STATION_STATUS(id=1, value="Open"),
-            TRA_STATION_STATUS(id=2, value="Closed"),
-            TRA_STATION_STATUS(id=3, value="Under Cleaning"),
-        ])
-    if db.query(TRA_ASSIGNMENT_STATUS).count() == 0:
-        db.add_all([
-            TRA_ASSIGNMENT_STATUS(id=1, value="Pending"),
-            TRA_ASSIGNMENT_STATUS(id=2, value="Approved"),
-            TRA_ASSIGNMENT_STATUS(id=3, value="Blocked"),
-        ])
-    if db.query(TRA_TIP_STATUS).count() == 0:
-        db.add_all([
-            TRA_TIP_STATUS(id=1, value="New"),
-            TRA_TIP_STATUS(id=2, value="Reviewed"),
-            TRA_TIP_STATUS(id=3, value="Converted to Incident"),
-            TRA_TIP_STATUS(id=4, value="Dismissed"),
-        ])
+function bindForms() {
+  document.getElementById('incidentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const params = new URLSearchParams();
+    for (const [key, value] of form.entries()) params.append(key, value.toString());
 
-    if db.query(TRA_STAFF).count() == 0:
-        db.add_all([
-            TRA_STAFF(staff_id=1, name="Chip Barnacle", username="mgr.chip", password="password123", email="chip@rustyanchor.com", role="Manager", specialization="Operations", compliance_status_id=1),
-            TRA_STAFF(staff_id=2, name="Marlin Fintastic", username="staff.marlin", password="password123", email="marlin@rustyanchor.com", role="Staff", specialization="Fry Cook", compliance_status_id=1),
-            TRA_STAFF(staff_id=3, name="Coral Finley", username="staff.coral", password="password123", email="coral@rustyanchor.com", role="Staff", specialization="Grill Specialist", compliance_status_id=1),
-            TRA_STAFF(staff_id=4, name="Gil Waverly", username="staff.gil", password="password123", email="gil@rustyanchor.com", role="Staff", specialization="Server / Host", compliance_status_id=3),
-        ])
-    if db.query(TRA_STATION).count() == 0:
-        db.add_all([
-            TRA_STATION(station_id=1, name="Fry Station", location="Back Kitchen", risk_level_id=3, status_id=1),
-            TRA_STATION(station_id=2, name="Grill Line", location="Back Kitchen", risk_level_id=3, status_id=1),
-            TRA_STATION(station_id=3, name="Walk-In Freezer", location="Storage Wing", risk_level_id=2, status_id=1),
-            TRA_STATION(station_id=4, name="Dining Floor", location="Main Hall", risk_level_id=1, status_id=1),
-        ])
-    if db.query(TRA_ASSIGNMENT).count() == 0:
-        db.add_all([
-            TRA_ASSIGNMENT(assignment_id=1, staff_id=2, station_id=1, shift_date=date.today(), status_id=1, status_explanation="Pending review"),
-            TRA_ASSIGNMENT(assignment_id=2, staff_id=3, station_id=2, shift_date=date.today(), status_id=2, status_explanation="Approved"),
-            TRA_ASSIGNMENT(assignment_id=3, staff_id=4, station_id=4, shift_date=date.today(), status_id=1, status_explanation="Pending review"),
-        ])
-    if db.query(TRA_INCIDENT).count() == 0:
-        db.add_all([
-            TRA_INCIDENT(incident_id=1, summary="Grease flare near fry station", station_id=1, staff_id=2, incident_date=datetime.utcnow(), incident_type="Kitchen Safety", item_name="Fryer A", photo="none", status="Open"),
-            TRA_INCIDENT(incident_id=2, summary="Burnt smell reported from grill line", station_id=2, staff_id=3, incident_date=datetime.utcnow(), incident_type="Equipment Issue", item_name="Grill", photo="none", status="Resolved"),
-        ])
-    if db.query(TRA_CUSTOMER_TIP).count() == 0:
-        db.add_all([
-            TRA_CUSTOMER_TIP(tip_id=1, description="The fryer oil smelled burnt and the fries looked undercooked.", location="Back Kitchen", guest_name="Anonymous", guest_email=None, image_attachment=None, status_id=1),
-            TRA_CUSTOMER_TIP(tip_id=2, description="I noticed a leaking cooler near the storage wing.", location="Kitchen", guest_name="Guest 42", guest_email="guest@example.com", image_attachment=None, status_id=2),
-        ])
-    db.commit()
+    const res = await fetch('/api/incidents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
 
+    if (res.ok) {
+      e.target.reset();
+      await loadIncidents();
+      renderIncidents();
+    }
+  });
 
-@app.on_event("startup")
-def startup_event():
-    db = next(get_db())
-    seed_data(db)
+  document.getElementById('tipForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const description = form.get('description')?.toString().trim();
+    const params = new URLSearchParams();
+    for (const [key, value] of form.entries()) params.append(key, value.toString());
 
+    const classifyRes = await fetch('/api/ai/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ text: description }).toString()
+    });
+    const classification = classifyRes.ok ? (await classifyRes.json()).classification : 'General Concern';
+    document.getElementById('classificationBadge').textContent = `AI classification: ${classification}`;
 
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    const res = await fetch('/api/tips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
+    });
 
+    if (res.ok) {
+      e.target.reset();
+      document.getElementById('classificationBadge').textContent = 'AI classification: waiting';
+      await loadTips();
+      renderTips();
+    }
+  });
+}
 
-@app.get("/api/staff")
-def get_staff(db: Session = Depends(get_db)):
-    return db.query(TRA_STAFF).all()
+function bindFilters() {
+  const searchInput = document.getElementById('searchInput');
+  const stationFilter = document.getElementById('stationFilter');
+  const startDate = document.getElementById('startDate');
+  const endDate = document.getElementById('endDate');
 
+  [searchInput, stationFilter, startDate, endDate].forEach(el => {
+    el.addEventListener('input', renderIncidents);
+    el.addEventListener('change', renderIncidents);
+  });
+}
 
-@app.get("/api/stations")
-def get_stations(db: Session = Depends(get_db)):
-    return db.query(TRA_STATION).all()
+async function loadAll() {
+  await Promise.all([
+    loadStations(),
+    loadStaff(),
+    loadIncidents(),
+    loadAssignments(),
+    loadTips(),
+    loadInsights()
+  ]);
+  populateLookups();
+  renderIncidents();
+  renderAssignments();
+  renderTips();
+  renderInsights();
+}
 
+async function loadStations() {
+  const res = await fetch('/api/stations');
+  state.stations = await res.json();
+}
 
-@app.get("/api/incidents")
-def list_incidents(
-    station: str | None = None,
-    search: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    db: Session = Depends(get_db),
-):
-    items = db.query(TRA_INCIDENT)
-    if station:
-        items = items.filter(TRA_INCIDENT.station_id == int(station))
-    if search:
-        items = items.filter(or_(TRA_INCIDENT.summary.ilike(f"%{search}%"), TRA_INCIDENT.incident_type.ilike(f"%{search}%")))
-    if start_date:
-        items = items.filter(TRA_INCIDENT.incident_date >= start_date)
-    if end_date:
-        items = items.filter(TRA_INCIDENT.incident_date <= end_date)
-    return items.order_by(TRA_INCIDENT.incident_date.desc()).all()
+async function loadStaff() {
+  const res = await fetch('/api/staff');
+  state.staff = await res.json();
+}
 
+async function loadIncidents() {
+  const res = await fetch('/api/incidents');
+  state.incidents = await res.json();
+}
 
-@app.post("/api/incidents")
-def create_incident(summary: str = Form(...), station_id: int = Form(...), staff_id: int = Form(...), incident_type: str = Form(...), item_name: str = Form(""), status: str = Form("Open"), db: Session = Depends(get_db)):
-    incident = TRA_INCIDENT(
-        summary=summary,
-        station_id=station_id,
-        staff_id=staff_id,
-        incident_type=incident_type,
-        item_name=item_name,
-        status=status,
-        incident_date=datetime.utcnow(),
-        photo="none",
-    )
-    db.add(incident)
-    db.commit()
-    db.refresh(incident)
-    return incident
+async function loadAssignments() {
+  const res = await fetch('/api/assignments');
+  state.assignments = await res.json();
+}
 
+async function loadTips() {
+  const res = await fetch('/api/tips');
+  state.tips = await res.json();
+}
 
-@app.patch("/api/incidents/{incident_id}")
-def update_incident(incident_id: int, status: str = Query(...), db: Session = Depends(get_db)):
-    incident = db.query(TRA_INCIDENT).filter(TRA_INCIDENT.incident_id == incident_id).first()
-    if not incident:
-        raise HTTPException(404, "Incident not found")
-    incident.status = status
-    db.commit()
-    return incident
+async function loadInsights() {
+  const res = await fetch('/api/insights');
+  state.insights = await res.json();
+}
 
+function populateLookups() {
+  const stationSelect = document.getElementById('stationSelect');
+  const stationFilter = document.getElementById('stationFilter');
+  const staffSelect = document.getElementById('staffSelect');
 
-@app.get("/api/assignments")
-def get_assignments(db: Session = Depends(get_db)):
-    return db.query(TRA_ASSIGNMENT).all()
+  stationSelect.innerHTML = state.stations.map(s => `<option value="${s.station_id}">${s.name}</option>`).join('');
+  stationFilter.innerHTML = '<option value="">All stations</option>' + state.stations.map(s => `<option value="${s.station_id}">${s.name}</option>`).join('');
+  staffSelect.innerHTML = state.staff.map(s => `<option value="${s.staff_id}">${s.name}</option>`).join('');
+}
 
+function getStationName(id) {
+  const station = state.stations.find(s => s.station_id === id);
+  return station ? station.name : 'Unknown';
+}
 
-@app.patch("/api/assignments/{assignment_id}")
-def approve_assignment(assignment_id: int, status: str = Query(...), explanation: str = Query(""), db: Session = Depends(get_db)):
-    assignment = db.query(TRA_ASSIGNMENT).filter(TRA_ASSIGNMENT.assignment_id == assignment_id).first()
-    if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    if status.lower() == "approved":
-        assignment.status_id = 2
-    elif status.lower() == "blocked":
-        assignment.status_id = 3
-    else:
-        assignment.status_id = 1
-    assignment.status_explanation = explanation
-    db.commit()
-    return assignment
+function getStaffName(id) {
+  const staff = state.staff.find(s => s.staff_id === id);
+  return staff ? staff.name : 'Unknown';
+}
 
+function renderIncidents() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const stationId = document.getElementById('stationFilter').value;
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
 
-@app.get("/api/tips")
-def list_tips(db: Session = Depends(get_db)):
-    return db.query(TRA_CUSTOMER_TIP).order_by(TRA_CUSTOMER_TIP.created_on.desc()).all()
+  let filtered = [...state.incidents];
 
+  if (search) {
+    filtered = filtered.filter(i => {
+      const text = `${i.summary || ''} ${i.incident_type || ''}`.toLowerCase();
+      return text.includes(search);
+    });
+  }
 
-@app.post("/api/tips")
-def create_tip(
-    description: str = Form(...),
-    location: str = Form(...),
-    guest_name: str = Form("Anonymous"),
-    guest_email: str = Form(""),
-    image_attachment: str = Form(""),
-    db: Session = Depends(get_db)
-):
-    tip = TRA_CUSTOMER_TIP(
-        description=description,
-        location=location,
-        guest_name=guest_name if guest_name else "Anonymous",
-        guest_email=guest_email or None,
-        image_attachment=image_attachment or None,
-        status_id=1,
-        time_reported=datetime.utcnow(),
-    )
-    db.add(tip)
-    db.commit()
-    db.refresh(tip)
-    return tip
+  if (stationId) {
+    filtered = filtered.filter(i => String(i.station_id) === stationId);
+  }
 
+  if (startDate) {
+    filtered = filtered.filter(i => new Date(i.incident_date) >= new Date(startDate));
+  }
 
-@app.post("/api/tips/{tip_id}/convert")
-def convert_tip_to_incident(tip_id: int, db: Session = Depends(get_db)):
-    tip = db.query(TRA_CUSTOMER_TIP).filter(TRA_CUSTOMER_TIP.tip_id == tip_id).first()
-    if not tip:
-        raise HTTPException(404, "Tip not found")
-    description = tip.description or "Customer tip converted to incident"
-    incident = TRA_INCIDENT(
-        summary=f"Converted from tip: {description[:120]}",
-        station_id=1,
-        staff_id=2,
-        incident_type=classify_text(description),
-        item_name="Customer Report",
-        status="Open",
-        incident_date=datetime.utcnow(),
-        photo=tip.image_attachment or "none",
-    )
-    db.add(incident)
-    db.commit()
-    db.refresh(incident)
-    tip.status_id = 3
-    db.commit()
-    return {"incident_id": incident.incident_id, "tip_id": tip.tip_id}
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    filtered = filtered.filter(i => new Date(i.incident_date) <= end);
+  }
 
+  document.getElementById('incidentTable').innerHTML = filtered.map(incident => `
+    <tr>
+      <td>${incident.summary || 'N/A'}</td>
+      <td>${incident.incident_type || 'General'}</td>
+      <td>${getStationName(Number(incident.station_id))}</td>
+      <td><span class="status-pill">${incident.status || 'Open'}</span></td>
+      <td>
+        <button class="mini" data-action="resolve" data-id="${incident.incident_id}">Resolve</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="5">No incidents match your filters.</td></tr>';
 
-@app.post("/api/ai/classify")
-def ai_classify(text: str = Form(...)):
-    return {"classification": classify_text(text)}
+  document.querySelectorAll('[data-action="resolve"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      await fetch(`/api/incidents/${id}?status=Resolved`, { method: 'PATCH' });
+      await loadIncidents();
+      renderIncidents();
+    });
+  });
+}
 
+function renderAssignments() {
+  const rows = state.assignments.map(a => `
+    <tr>
+      <td>${getStaffName(a.staff_id)}</td>
+      <td>${getStationName(a.station_id)}</td>
+      <td>${a.shift_date || 'Today'}</td>
+      <td>${statusMap[a.status_id] || 'Pending'}</td>
+      <td>
+        <button class="mini" data-assign-action="approve" data-id="${a.assignment_id}">Approve</button>
+        <button class="mini danger" data-assign-action="block" data-id="${a.assignment_id}">Block</button>
+      </td>
+    </tr>
+  `).join('');
 
-@app.get("/api/insights")
-def insights(db: Session = Depends(get_db)):
-    incidents = db.query(TRA_INCIDENT).all()
-    counts = {}
-    for inc in incidents:
-        counts[inc.incident_type or "General"] = counts.get(inc.incident_type or "General", 0) + 1
-    return {"by_type": counts, "total_incidents": len(incidents)}
+  document.getElementById('assignmentTable').innerHTML = rows || '<tr><td colspan="5">No assignments found.</td></tr>';
 
+  document.querySelectorAll('[data-assign-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const action = btn.dataset.assignAction;
+      const status = action === 'approve' ? 'Approved' : 'Blocked';
+      await fetch(`/api/assignments/${id}?status=${status}&explanation=${encodeURIComponent('Demo approval workflow')}`, { method: 'PATCH' });
+      await loadAssignments();
+      renderAssignments();
+    });
+  });
+}
 
-def classify_text(text: str) -> str:
-    t = (text or "").lower()
-    if "grease" in t or "fire" in t or "burn" in t:
-        return "Kitchen Safety"
-    if "cold" in t or "food" in t or "smell" in t or "quality" in t:
-        return "Food Quality"
-    if "leak" in t or "clean" in t or "sanitation" in t:
-        return "Sanitation"
-    if "staff" in t or "suspicious" in t or "theft" in t:
-        return "Security"
-    return "General Concern"
+function renderTips() {
+  const rows = state.tips.map(tip => `
+    <tr>
+      <td>${tip.description || 'N/A'}</td>
+      <td>${tip.location || 'Unknown'}</td>
+      <td>${tip.status_id === 3 ? 'Converted' : 'New'}</td>
+      <td>
+        <button class="mini" data-tip-action="convert" data-id="${tip.tip_id}">Convert</button>
+      </td>
+    </tr>
+  `).join('');
 
+  document.getElementById('tipTable').innerHTML = rows || '<tr><td colspan="4">No tips waiting.</td></tr>';
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "message": "The Rusty Anchor is running."}
+  document.querySelectorAll('[data-tip-action="convert"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      await fetch(`/api/tips/${id}/convert`, { method: 'POST' });
+      await Promise.all([loadTips(), loadIncidents(), loadInsights()]);
+      renderTips();
+      renderIncidents();
+      renderInsights();
+    });
+  });
+}
+
+function renderInsights() {
+  const counts = state.insights.by_type || {};
+  const labels = Object.keys(counts);
+  const values = Object.values(counts);
+  const max = Math.max(...values, 1);
+
+  const bars = labels.map((label, index) => `
+    <div class="bar-group">
+      <div class="bar" style="height:${(values[index] / max) * 120 + 30}px">${values[index]}</div>
+      <small>${label}</small>
+    </div>
+  `).join('');
+
+  document.getElementById('chart').innerHTML = bars || '<div class="empty-state">No incident data yet.</div>';
+  document.getElementById('insightSummary').textContent = `Total incidents: ${state.insights.total_incidents || 0}`;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelector('.tab-panel').style.display = 'block';
+});

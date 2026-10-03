@@ -9,11 +9,11 @@
 <body>
   <div class="topbar">
     <div>
-      <h2 style="margin:0;">The Rusty Anchor</h2>
+      <h2>The Rusty Anchor</h2>
       <small>Kitchen safety & incident desk</small>
     </div>
-    <div>
-      <strong id="roleBadge">Manager View</strong>
+    <div class="topbar-actions">
+      <button id="roleToggle" class="outline">Manager View</button>
     </div>
   </div>
 
@@ -30,9 +30,9 @@
         <h3>Submit Incident</h3>
         <form id="incidentForm">
           <div class="row">
-            <div class="col">
+            <div class="col wide">
               <label>Summary</label>
-              <textarea name="summary" required></textarea>
+              <textarea name="summary" required placeholder="Example: Grease flare at fryer station"></textarea>
             </div>
             <div class="col">
               <label>Station</label>
@@ -46,7 +46,7 @@
           <div class="row" style="margin-top:12px;">
             <div class="col">
               <label>Type</label>
-              <input name="incident_type" placeholder="Kitchen Safety" />
+              <input name="incident_type" value="Kitchen Safety" />
             </div>
             <div class="col">
               <label>Item</label>
@@ -69,7 +69,7 @@
 
       <div class="card">
         <h3>Incident Search & Filter</h3>
-        <div class="row">
+        <div class="row filters">
           <div class="col"><input id="searchInput" placeholder="Search summary or type" /></div>
           <div class="col"><select id="stationFilter"><option value="">All stations</option></select></div>
           <div class="col"><input id="startDate" type="date" /></div>
@@ -101,9 +101,9 @@
         <h3>Customer Tip Line (No Login)</h3>
         <form id="tipForm">
           <div class="row">
-            <div class="col">
+            <div class="col wide">
               <label>Tip Description</label>
-              <textarea name="description" required></textarea>
+              <textarea name="description" required placeholder="I noticed a leak in the walk-in cooler and the smell of fryer oil was strong."></textarea>
             </div>
             <div class="col">
               <label>Location</label>
@@ -120,7 +120,14 @@
               <input name="guest_email" placeholder="optional" />
             </div>
           </div>
-          <div style="margin-top:16px;"><button type="submit">Submit Tip</button></div>
+          <div class="row" style="margin-top:12px;">
+            <div class="col">
+              <button type="submit">Submit Tip</button>
+            </div>
+            <div class="col">
+              <div id="classificationBadge" class="mini-badge">AI classification: waiting</div>
+            </div>
+          </div>
         </form>
       </div>
 
