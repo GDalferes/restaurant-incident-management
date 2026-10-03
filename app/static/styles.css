@@ -1,294 +1,215 @@
-const state = {
-  stations: [],
-  staff: [],
-  incidents: [],
-  assignments: [],
-  tips: [],
-  insights: { total_incidents: 0, by_type: {} }
-};
-
-const statusMap = { 1: 'Pending', 2: 'Approved', 3: 'Blocked' };
-
-document.addEventListener('DOMContentLoaded', () => {
-  bindTabs();
-  bindRoleToggle();
-  bindForms();
-  bindFilters();
-  loadAll();
-});
-
-function bindTabs() {
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tab));
-      document.querySelectorAll('.tab-panel').forEach(panel => {
-        panel.style.display = panel.id === tab.dataset.tab ? 'block' : 'none';
-      });
-    });
-  });
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(180deg, #f5f1ea 0%, #eef7f9 100%);
+  margin: 0;
+  color: #1e293b;
 }
 
-function bindRoleToggle() {
-  const btn = document.getElementById('roleToggle');
-  let manager = true;
-  btn.addEventListener('click', () => {
-    manager = !manager;
-    btn.textContent = manager ? 'Manager View' : 'Staff View';
-    btn.classList.toggle('outline', manager);
-    document.getElementById('roleBadge')?.remove();
-  });
+.topbar {
+  background: linear-gradient(135deg, #0f172a, #0f766e);
+  color: white;
+  padding: 22px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-function bindForms() {
-  document.getElementById('incidentForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    const params = new URLSearchParams();
-    for (const [key, value] of form.entries()) params.append(key, value.toString());
-
-    const res = await fetch('/api/incidents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
-    });
-
-    if (res.ok) {
-      e.target.reset();
-      await loadIncidents();
-      renderIncidents();
-    }
-  });
-
-  document.getElementById('tipForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = new FormData(e.target);
-    const description = form.get('description')?.toString().trim();
-    const params = new URLSearchParams();
-    for (const [key, value] of form.entries()) params.append(key, value.toString());
-
-    const classifyRes = await fetch('/api/ai/classify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ text: description }).toString()
-    });
-    const classification = classifyRes.ok ? (await classifyRes.json()).classification : 'General Concern';
-    document.getElementById('classificationBadge').textContent = `AI classification: ${classification}`;
-
-    const res = await fetch('/api/tips', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
-    });
-
-    if (res.ok) {
-      e.target.reset();
-      document.getElementById('classificationBadge').textContent = 'AI classification: waiting';
-      await loadTips();
-      renderTips();
-    }
-  });
+.topbar h2 {
+  margin: 0;
+  font-size: 1.8rem;
 }
 
-function bindFilters() {
-  const searchInput = document.getElementById('searchInput');
-  const stationFilter = document.getElementById('stationFilter');
-  const startDate = document.getElementById('startDate');
-  const endDate = document.getElementById('endDate');
-
-  [searchInput, stationFilter, startDate, endDate].forEach(el => {
-    el.addEventListener('input', renderIncidents);
-    el.addEventListener('change', renderIncidents);
-  });
+.topbar small {
+  color: #dbeafe;
 }
 
-async function loadAll() {
-  await Promise.all([
-    loadStations(),
-    loadStaff(),
-    loadIncidents(),
-    loadAssignments(),
-    loadTips(),
-    loadInsights()
-  ]);
-  populateLookups();
-  renderIncidents();
-  renderAssignments();
-  renderTips();
-  renderInsights();
+.topbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
-async function loadStations() {
-  const res = await fetch('/api/stations');
-  state.stations = await res.json();
+.container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-async function loadStaff() {
-  const res = await fetch('/api/staff');
-  state.staff = await res.json();
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-async function loadIncidents() {
-  const res = await fetch('/api/incidents');
-  state.incidents = await res.json();
+.tab {
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease;
 }
 
-async function loadAssignments() {
-  const res = await fetch('/api/assignments');
-  state.assignments = await res.json();
+.tab.active {
+  background: #0f766e;
+  color: white;
 }
 
-async function loadTips() {
-  const res = await fetch('/api/tips');
-  state.tips = await res.json();
+.tab-panel {
+  display: none;
 }
 
-async function loadInsights() {
-  const res = await fetch('/api/insights');
-  state.insights = await res.json();
+.card {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  margin-bottom: 18px;
 }
 
-function populateLookups() {
-  const stationSelect = document.getElementById('stationSelect');
-  const stationFilter = document.getElementById('stationFilter');
-  const staffSelect = document.getElementById('staffSelect');
-
-  stationSelect.innerHTML = state.stations.map(s => `<option value="${s.station_id}">${s.name}</option>`).join('');
-  stationFilter.innerHTML = '<option value="">All stations</option>' + state.stations.map(s => `<option value="${s.station_id}">${s.name}</option>`).join('');
-  staffSelect.innerHTML = state.staff.map(s => `<option value="${s.staff_id}">${s.name}</option>`).join('');
+.card h3 {
+  margin-top: 0;
 }
 
-function getStationName(id) {
-  const station = state.stations.find(s => s.station_id === id);
-  return station ? station.name : 'Unknown';
+.row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-function getStaffName(id) {
-  const staff = state.staff.find(s => s.staff_id === id);
-  return staff ? staff.name : 'Unknown';
+.col {
+  flex: 1;
+  min-width: 180px;
 }
 
-function renderIncidents() {
-  const search = document.getElementById('searchInput').value.toLowerCase();
-  const stationId = document.getElementById('stationFilter').value;
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
-
-  let filtered = [...state.incidents];
-
-  if (search) {
-    filtered = filtered.filter(i => {
-      const text = `${i.summary || ''} ${i.incident_type || ''}`.toLowerCase();
-      return text.includes(search);
-    });
-  }
-
-  if (stationId) {
-    filtered = filtered.filter(i => String(i.station_id) === stationId);
-  }
-
-  if (startDate) {
-    filtered = filtered.filter(i => new Date(i.incident_date) >= new Date(startDate));
-  }
-
-  if (endDate) {
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
-    filtered = filtered.filter(i => new Date(i.incident_date) <= end);
-  }
-
-  document.getElementById('incidentTable').innerHTML = filtered.map(incident => `
-    <tr>
-      <td>${incident.summary || 'N/A'}</td>
-      <td>${incident.incident_type || 'General'}</td>
-      <td>${getStationName(Number(incident.station_id))}</td>
-      <td><span class="status-pill">${incident.status || 'Open'}</span></td>
-      <td>
-        <button class="mini" data-action="resolve" data-id="${incident.incident_id}">Resolve</button>
-      </td>
-    </tr>
-  `).join('') || '<tr><td colspan="5">No incidents match your filters.</td></tr>';
-
-  document.querySelectorAll('[data-action="resolve"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      await fetch(`/api/incidents/${id}?status=Resolved`, { method: 'PATCH' });
-      await loadIncidents();
-      renderIncidents();
-    });
-  });
+.col.wide {
+  flex: 2;
 }
 
-function renderAssignments() {
-  const rows = state.assignments.map(a => `
-    <tr>
-      <td>${getStaffName(a.staff_id)}</td>
-      <td>${getStationName(a.station_id)}</td>
-      <td>${a.shift_date || 'Today'}</td>
-      <td>${statusMap[a.status_id] || 'Pending'}</td>
-      <td>
-        <button class="mini" data-assign-action="approve" data-id="${a.assignment_id}">Approve</button>
-        <button class="mini danger" data-assign-action="block" data-id="${a.assignment_id}">Block</button>
-      </td>
-    </tr>
-  `).join('');
-
-  document.getElementById('assignmentTable').innerHTML = rows || '<tr><td colspan="5">No assignments found.</td></tr>';
-
-  document.querySelectorAll('[data-assign-action]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      const action = btn.dataset.assignAction;
-      const status = action === 'approve' ? 'Approved' : 'Blocked';
-      await fetch(`/api/assignments/${id}?status=${status}&explanation=${encodeURIComponent('Demo approval workflow')}`, { method: 'PATCH' });
-      await loadAssignments();
-      renderAssignments();
-    });
-  });
+label {
+  display: block;
+  font-weight: 600;
+  margin-top: 10px;
+  margin-bottom: 4px;
 }
 
-function renderTips() {
-  const rows = state.tips.map(tip => `
-    <tr>
-      <td>${tip.description || 'N/A'}</td>
-      <td>${tip.location || 'Unknown'}</td>
-      <td>${tip.status_id === 3 ? 'Converted' : 'New'}</td>
-      <td>
-        <button class="mini" data-tip-action="convert" data-id="${tip.tip_id}">Convert</button>
-      </td>
-    </tr>
-  `).join('');
-
-  document.getElementById('tipTable').innerHTML = rows || '<tr><td colspan="4">No tips waiting.</td></tr>';
-
-  document.querySelectorAll('[data-tip-action="convert"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      await fetch(`/api/tips/${id}/convert`, { method: 'POST' });
-      await Promise.all([loadTips(), loadIncidents(), loadInsights()]);
-      renderTips();
-      renderIncidents();
-      renderInsights();
-    });
-  });
+input, select, textarea, button {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  padding: 10px 12px;
+  font-size: 14px;
 }
 
-function renderInsights() {
-  const counts = state.insights.by_type || {};
-  const labels = Object.keys(counts);
-  const values = Object.values(counts);
-  const max = Math.max(...values, 1);
-
-  const bars = labels.map((label, index) => `
-    <div class="bar-group">
-      <div class="bar" style="height:${(values[index] / max) * 120 + 30}px">${values[index]}</div>
-      <small>${label}</small>
-    </div>
-  `).join('');
-
-  document.getElementById('chart').innerHTML = bars || '<div class="empty-state">No incident data yet.</div>';
-  document.getElementById('insightSummary').textContent = `Total incidents: ${state.insights.total_incidents || 0}`;
+textarea {
+  min-height: 80px;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  document.querySelector('.tab-panel').style.display = 'block';
-});
+button {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.outline {
+  background: transparent;
+  border: 1px solid white;
+  color: white;
+}
+
+button.mini {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  margin-right: 6px;
+}
+
+button.mini.danger {
+  background: #dc2626;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  padding: 12px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+th {
+  color: #475569;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mini-badge {
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0f172a;
+  display: inline-block;
+  padding: 10px 14px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+#chart {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  min-height: 180px;
+  margin-top: 20px;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar {
+  width: 100%;
+  background: linear-gradient(180deg, #f59e0b, #ef4444);
+  border-radius: 10px 10px 0 0;
+  color: white;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-weight: bold;
+  min-height: 30px;
+  padding-bottom: 8px;
+}
+
+.empty-state {
+  color: #64748b;
+}
+
+.filters {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 700px) {
+  .topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .container { padding: 14px; }
+}
